@@ -7,21 +7,35 @@ const WHITE_KEYS = [
 ];
 const WHITE_MIDI_OFFSETS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19];
 
+// Black keys in order, matching the physical piano pattern and your keyboard mapping
 const BLACK_KEYS = [
-  '2',  // C#7 above 'a'
-  'e',  // D#7 above 's'
-  null, // no black above 'd'
-  't',  // F#7 above 'f'
-  'y',  // G#7 above 'g'
-  'u',  // A#7 above 'h'
-  null, // no black above 'j'
-  'o',  // C#8 above 'k'
-  'p',  // D#8 above 'l'
-  '[',  // E#8 above ';'
-  null, // no black above "'"
-  null  // no black above Enter
+  'w', // C# above 'a'
+  'e', // D# above 's'
+  null, // no black key above 'd'
+  't', // F# above 'f'
+  'y', // G# above 'g'
+  'u', // A# above 'h'
+  null, // no black key above 'j'
+  'o', // C# above 'k'
+  'p', // D# above 'l'
+  ']', // F# above ';'
+  '\\' // G# above "'"
 ];
-const BLACK_MIDI_OFFSETS = [1, 3, null, 6, 8, 10, null, 13, 15, 17, null, null];
+
+// MIDI offsets for black keys, matching their position above white keys
+const BLACK_MIDI_OFFSETS = [
+  1,   // C# (C + 1)
+  3,   // D# (D + 1)
+  null,
+  6,   // F# (F + 1)
+  8,   // G# (G + 1)
+  10,  // A# (A + 1)
+  null,
+  13,  // C# (next octave)
+  15,  // D# (next octave)
+  18,  // F# (next octave)
+  20   // G# (next octave)
+];
 
 // Initial octave is 6 (C6 = 84)
 let currentOctave = 6;
