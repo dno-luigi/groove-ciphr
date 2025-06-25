@@ -1,80 +1,76 @@
 // main.js
 
-// ======= Mappings as specified =======
+// ======= PIANO KEYBOARD MAPPING =======
 
-// White keys, left to right
+// White keys in order (from C6): a s d f g h j k l ; ' Enter
 const WHITE_KEYS = [
-  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'", 'Enter"
+  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'", 'Enter'
 ];
-
-// Black keys, left to right, null for skips
-// The array index must match the white key base for proper overlay
+// Black keys overlay (null for missing black key in layout): 2 e [skip-r] t y u [skip-i] o p [
 const BLACK_KEYS = [
-  '2',    // C#7 above 'a'
-  'e',    // D#7 above 's'
-  null,   // skip above 'd'
-  't',    // F#7 above 'f'
-  'y',    // G#7 above 'g'
-  'u',    // A#8 above 'h'
-  null,   // skip above 'j'
-  'o',    // C#8 above 'k'
-  'p',    // D#8 above 'l'
-  '[',    // E#8 above ';'
-  null,   // skip above "'"
-  null    // skip above 'Enter'
+  '2',    // C# above 'a'
+  'e',    // D# above 's'
+  null,   // no black above 'd'
+  't',    // F# above 'f'
+  'y',    // G# above 'g'
+  'u',    // A# above 'h'
+  null,   // no black above 'j'
+  'o',    // C# above 'k'
+  'p',    // D# above 'l'
+  '[',    // E# above ';'
+  null,   // no black above "'"
+  null    // no black above 'Enter'
 ];
 
-// Base MIDI for C6
-const WHITE_MIDI_BASE = 84; // C6
+// C6 = MIDI 84, so white keys: C6 D6 E6 F6 G6 A6 B6 C7 D7 E7 F7 G7
+const WHITE_MIDI_OFFSETS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19];
 const BLACK_MIDI_OFFSETS = [1, 3, null, 6, 8, 10, null, 13, 15, 17, null, null];
 
-// ======= Octave shifting =======
+// ======= Octave Logic =======
 let currentOctave = 6; // C6 = 84
 const MIN_OCTAVE = 1;
 const MAX_OCTAVE = 8;
 
-// ======= CapsLock toggle disables input =======
+// ======= CapsLock Toggle =======
 let capsLockActive = false;
 
 // ======= Melody =======
 let melody = [];
 
-// ======= Piano rendering =======
+// ======= UI: Render Piano =======
 function renderPiano() {
   const wrap = document.getElementById('piano-wrap');
   wrap.innerHTML = '';
   const piano = document.createElement('div');
   piano.className = 'piano';
-
-  // White keys
+  // --- White keys ---
   WHITE_KEYS.forEach((k, i) => {
-    const midi = WHITE_MIDI_BASE + (i * 2) + (i > 2 ? 1 : 0); // Account for E-F and B-C semitone gap
+    const midi = 12 * currentOctave + WHITE_MIDI_OFFSETS[i];
     const div = document.createElement('div');
     div.className = 'piano-key white';
-    div.dataset.midi = midi + (currentOctave - 6) * 12;
+    div.dataset.midi = midi;
     div.dataset.key = k;
     div.innerHTML = `
       <span class="key-label">${displayKeyLabel(k)}</span>
-      <span class="key-note">${midiToNote(midi + (currentOctave - 6) * 12)}</span>
+      <span class="key-note">${midiToNote(midi)}</span>
     `;
     div.onmousedown = () => {
       if (!capsLockActive) {
-        playNote(midi + (currentOctave - 6) * 12);
-        addToMelody(midi + (currentOctave - 6) * 12);
+        playNote(midi);
+        addToMelody(midi);
       }
     };
     piano.appendChild(div);
   });
-
-  // Black keys as overlay
+  // --- Black keys (overlay, absolute positioning) ---
   BLACK_KEYS.forEach((k, i) => {
-    if (!k) return;
-    const midi = WHITE_MIDI_BASE + BLACK_MIDI_OFFSETS[i] + (currentOctave - 6) * 12;
+    if (!k || BLACK_MIDI_OFFSETS[i] === null) return;
+    const midi = 12 * currentOctave + BLACK_MIDI_OFFSETS[i];
     const div = document.createElement('div');
     div.className = 'piano-key black';
     div.dataset.midi = midi;
     div.dataset.key = k;
-    // Position: left of the next white key, offset for black key width
+    // Position black keys between/above the right whites
     div.style.left = `${i * 36 + 24}px`;
     div.innerHTML = `<span class="key-label">${displayKeyLabel(k)}</span>`;
     div.onmousedown = () => {
@@ -85,10 +81,8 @@ function renderPiano() {
     };
     piano.appendChild(div);
   });
-
   wrap.appendChild(piano);
-
-  // Show current octave
+  // Show octave
   let octDiv = document.getElementById('octave-indicator');
   if (!octDiv) {
     octDiv = document.createElement('div');
@@ -109,7 +103,7 @@ function displayKeyLabel(k) {
   return k.length === 1 ? k.toUpperCase() : k;
 }
 
-// ======= Melody functions =======
+// ======= Melody Looper =======
 function addToMelody(midi) {
   if (melody.length > 63) return;
   melody.push({ midi, time: Date.now() });
@@ -131,8 +125,8 @@ function clearMelody() {
 }
 document.getElementById('melody-clear').onclick = clearMelody;
 
-// ======= Play sound and highlight =======
-function playNote(midi, vol=0.18) {
+// ======= Sound/Highlight =======
+function playNote(midi, vol = 0.18) {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const o = ctx.createOscillator();
   o.type = 'triangle';
@@ -152,16 +146,15 @@ function highlightKey(midi) {
   if (el) { el.classList.add('active'); setTimeout(() => el.classList.remove('active'), 140); }
 }
 
-// ======= Keyboard event logic =======
+// ======= Keyboard Event Logic =======
 document.addEventListener('keydown', e => {
   if (e.repeat) return;
-
+  // CapsLock
   if (e.key === "CapsLock") {
     capsLockActive = !capsLockActive;
     document.body.classList.toggle('capslock-disabled', capsLockActive);
     return;
   }
-
   if (capsLockActive) return;
 
   // Octave shift
@@ -179,7 +172,6 @@ document.addEventListener('keydown', e => {
     }
     return;
   }
-
   // Backspace
   if (e.key === "Backspace") {
     e.preventDefault();
@@ -189,27 +181,25 @@ document.addEventListener('keydown', e => {
     }
     return;
   }
-
   // White keys
   let idx = WHITE_KEYS.indexOf(e.key);
   if (idx !== -1) {
-    const midi = WHITE_MIDI_BASE + (idx * 2) + (idx > 2 ? 1 : 0) + (currentOctave - 6) * 12;
+    const midi = 12 * currentOctave + WHITE_MIDI_OFFSETS[idx];
     playNote(midi);
     addToMelody(midi);
     return;
   }
-
   // Black keys
   idx = BLACK_KEYS.indexOf(e.key);
   if (idx !== -1 && BLACK_MIDI_OFFSETS[idx] !== null) {
-    const midi = WHITE_MIDI_BASE + BLACK_MIDI_OFFSETS[idx] + (currentOctave - 6) * 12;
+    const midi = 12 * currentOctave + BLACK_MIDI_OFFSETS[idx];
     playNote(midi);
     addToMelody(midi);
     return;
   }
 });
 
-// ======= Encoding/Decoding (unchanged) =======
+// ======= Encoding / Decoding (unchanged) =======
 function melodyToHash() {
   return melody.map(n => n.midi).join(',');
 }
@@ -249,8 +239,12 @@ document.getElementById('decode-btn').onclick = function () {
   document.getElementById('cipher-output').textContent = `Decoded: ${msg}`;
 };
 
-// ======= On load =======
+// ======= Piano Render on Load =======
 window.onload = function () {
   renderPiano();
   updateMelodyBar();
+  // ... your other initializations ...
 };
+
+// ======= LED GRID, PERCUSSION, ETC (unchanged from prior) =======
+// ... your existing LED grid, sample, sequencer, and UI logic goes here, unchanged ...
