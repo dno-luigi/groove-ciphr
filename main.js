@@ -1,74 +1,60 @@
-// main.js
+// main.js (Tone.js-powered for Groove Box/Cipher!)
+// Add <script src="https://unpkg.com/tone@next"></script> in your index.html
 
-// ======= PIANO KEYBOARD MAPPING =======
+// ======= Tone.js Setup & Instruments =======
+Tone.context.lookAhead = 0.03; // Tighten timing
 
-const WHITE_KEYS = [
-  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'", 'Enter'
-];
+// Melody synth (polyphonic, supports chords)
+const synth = new Tone.PolySynth(Tone.Synth, {
+  oscillator: { type: "triangle" },
+  envelope: { attack: 0.01, decay: 0.12, sustain: 0, release: 0.18 }
+}).toDestination();
+
+// Drum sample players
+const drumSamples = {
+  kick: new Tone.Player("kick.wav").toDestination(),
+  snare: new Tone.Player("snare.wav").toDestination(),
+  hat: new Tone.Player("hat.wav").toDestination(),
+  clap: new Tone.Player("clap.wav").toDestination(),
+  perc1: new Tone.Player("perc1.wav").toDestination()
+};
+
+// ======= State =======
+let currentOctave = 6, MIN_OCTAVE = 1, MAX_OCTAVE = 8;
+let melody = [];
+let ledRows = 5, ledCols = 5;
+let ledGrid = Array.from({length: ledRows}, () => Array(ledCols).fill(null)); // null or sample name
+let isRecording = false;
+let melodyStep = 0;
+let melodySequence = null;
+let ledSequence = null;
+let bpm = 120;
+
+// ======= Piano Keyboard =======
+const WHITE_KEYS = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', "'", 'Enter'];
 const WHITE_MIDI_OFFSETS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19];
+const BLACK_KEYS = ['w','e',null,'t','y','u',null,'o','p',']','\\'];
+const BLACK_MIDI_OFFSETS = [1,3,null,6,8,10,null,13,15,18,20];
 
-// Black keys in order, matching the physical piano pattern and your keyboard mapping
-const BLACK_KEYS = [
-  'w', // C# above 'a'
-  'e', // D# above 's'
-  null, // no black key above 'd'
-  't', // F# above 'f'
-  'y', // G# above 'g'
-  'u', // A# above 'h'
-  null, // no black key above 'j'
-  'o', // C# above 'k'
-  'p', // D# above 'l'
-  ']', // F# above ';'
-  '\\' // G# above "'"
-];
-
-// MIDI offsets for black keys, matching their position above white keys
-const BLACK_MIDI_OFFSETS = [
-  1,   // C# (C + 1)
-  3,   // D# (D + 1)
-  null,
-  6,   // F# (F + 1)
-  8,   // G# (G + 1)
-  10,  // A# (A + 1)
-  null,
-  13,  // C# (next octave)
-  15,  // D# (next octave)
-  18,  // F# (next octave)
-  20   // G# (next octave)
-];
-
-// Initial octave is 6 (C6 = 84)
-let currentOctave = 6;
-const MIN_OCTAVE = 1, MAX_OCTAVE = 8;
-
-let capsLockActive = false;
-
-// ======= Piano Rendering =======
 function renderPiano() {
   const wrap = document.getElementById('piano-wrap');
   wrap.innerHTML = '';
   const piano = document.createElement('div');
   piano.className = 'piano';
-  // White keys
   WHITE_KEYS.forEach((k, i) => {
     const midi = 12 * currentOctave + WHITE_MIDI_OFFSETS[i];
     const div = document.createElement('div');
     div.className = 'piano-key white';
     div.dataset.midi = midi;
     div.dataset.key = k;
-    div.innerHTML = `
-      <span class="key-label">${displayKeyLabel(k)}</span>
-      <span class="key-note">${midiToNote(midi)}</span>
-    `;
+    div.innerHTML = `<span class="key-label">${displayKeyLabel(k)}</span>
+      <span class="key-note">${midiToNote(midi)}</span>`;
     div.onmousedown = () => {
-      if (!capsLockActive) {
-        playNote(midi);
-        addToMelody(midi);
-      }
+      playNoteToneJS(midi);
+      if (isRecording) addToMelody(midi);
     };
     piano.appendChild(div);
   });
-  // Black keys
   BLACK_KEYS.forEach((k, i) => {
     if (!k || BLACK_MIDI_OFFSETS[i] === null) return;
     const midi = 12 * currentOctave + BLACK_MIDI_OFFSETS[i];
@@ -79,24 +65,12 @@ function renderPiano() {
     div.style.left = `${i * 36 + 24}px`;
     div.innerHTML = `<span class="key-label">${displayKeyLabel(k)}</span>`;
     div.onmousedown = () => {
-      if (!capsLockActive) {
-        playNote(midi);
-        addToMelody(midi);
-      }
+      playNoteToneJS(midi);
+      if (isRecording) addToMelody(midi);
     };
     piano.appendChild(div);
   });
   wrap.appendChild(piano);
-
-  // Show current octave
-  let octDiv = document.getElementById('octave-indicator');
-  if (!octDiv) {
-    octDiv = document.createElement('div');
-    octDiv.id = 'octave-indicator';
-    octDiv.style = "margin: 8px 0 0 0; font-weight: bold; font-size: 1.1em; color: #888;";
-    wrap.parentElement.insertBefore(octDiv, wrap.nextSibling);
-  }
-  octDiv.innerHTML = `Current Octave: <span id="octave-num">${currentOctave}</span>`;
 }
 
 function midiToNote(m) {
@@ -109,30 +83,19 @@ function displayKeyLabel(k) {
   return k.length === 1 ? k.toUpperCase() : k;
 }
 
-// ======= Octave Shift Logic =======
 function shiftOctave(dir) {
-  const prev = currentOctave;
   currentOctave += dir;
   if (currentOctave < MIN_OCTAVE) currentOctave = MIN_OCTAVE;
   if (currentOctave > MAX_OCTAVE) currentOctave = MAX_OCTAVE;
-  if (prev !== currentOctave) {
-    renderPiano();
-  }
+  renderPiano();
 }
 
-// ======= Piano Note Playback =======
-function playNote(midi, vol=0.18) {
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const o = ctx.createOscillator();
-  o.type = 'triangle';
-  o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
-  const g = ctx.createGain();
-  g.gain.value = vol;
-  o.connect(g).connect(ctx.destination);
-  o.start();
-  g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.18);
-  o.stop(ctx.currentTime + 0.19);
-  o.onended = () => ctx.close();
+// ======= Play Note with Tone.js =======
+async function playNoteToneJS(midi, vol = 0.18) {
+  await Tone.start();
+  const freq = Tone.Frequency(midi, "midi").toFrequency();
+  synth.set({ volume: Tone.gainToDb(vol) });
+  synth.triggerAttackRelease(freq, 0.2);
   highlightKey(midi);
 }
 function highlightKey(midi) {
@@ -141,11 +104,10 @@ function highlightKey(midi) {
   if (el) { el.classList.add('active'); setTimeout(() => el.classList.remove('active'), 140); }
 }
 
-// ======= Melody Logic =======
-let melody = [];
+// ======= Melody Recording =======
 function addToMelody(midi) {
   if (melody.length > 63) return;
-  melody.push({ midi, time: Date.now() });
+  melody.push({ midi, time: Tone.Transport.seconds });
   updateMelodyBar();
 }
 function updateMelodyBar() {
@@ -162,56 +124,33 @@ function clearMelody() {
   melody = [];
   updateMelodyBar();
 }
-document.getElementById('melody-clear').onclick = clearMelody;
 
-// ======= Keyboard Event Logic =======
-document.addEventListener('keydown', e => {
-  if (e.repeat) return;
-  if (e.key === "CapsLock") {
-    capsLockActive = !capsLockActive;
-    document.body.classList.toggle('capslock-disabled', capsLockActive);
-    return;
-  }
-  if (capsLockActive) return;
-  // Octave shift
-  if (e.key === "PageUp") {
-    shiftOctave(1);
-    return;
-  }
-  if (e.key === "PageDown") {
-    shiftOctave(-1);
-    return;
-  }
-  // Backspace
-  if (e.key === "Backspace") {
-    e.preventDefault();
-    if (melody.length > 0) {
-      melody.pop();
-      updateMelodyBar();
-    }
-    return;
-  }
-  // White keys
-  let idx = WHITE_KEYS.indexOf(e.key);
-  if (idx !== -1) {
-    const midi = 12 * currentOctave + WHITE_MIDI_OFFSETS[idx];
-    playNote(midi);
-    addToMelody(midi);
-    return;
-  }
-  // Black keys
-  idx = BLACK_KEYS.indexOf(e.key);
-  if (idx !== -1 && BLACK_MIDI_OFFSETS[idx] !== null) {
-    const midi = 12 * currentOctave + BLACK_MIDI_OFFSETS[idx];
-    playNote(midi);
-    addToMelody(midi);
-    return;
-  }
-});
+// ======= Melody Sequencer =======
+function playMelody() {
+  if (melody.length === 0) return;
+  if (melodySequence) melodySequence.dispose();
+  melodyStep = 0;
+  melodySequence = new Tone.Sequence((time, noteObj) => {
+    synth.triggerAttackRelease(Tone.Frequency(noteObj.midi, "midi"), 0.18, time);
+    highlightKey(noteObj.midi);
+    highlightMelodyStep(melodyStep++);
+  }, melody, "8n").start(0);
+  Tone.Transport.bpm.value = bpm;
+  Tone.Transport.start("+0.1");
+}
+function stopMelody() {
+  if (melodySequence) melodySequence.dispose();
+  melodySequence = null;
+  Tone.Transport.stop();
+  melodyStep = 0;
+}
+function highlightMelodyStep(idx) {
+  const bar = document.getElementById('melody-bar').children;
+  for (let i = 0; i < bar.length; i++) bar[i].classList.remove('playing');
+  if (bar[idx]) bar[idx].classList.add('playing');
+}
 
-// ======= LED GRID =======
-const ledRows = 5, ledCols = 5;
-let ledGrid = Array.from({length: ledRows}, () => Array(ledCols).fill(false));
+// ======= LED Drum Grid =======
 function renderLEDGrid() {
   const wrap = document.getElementById('led-grid-wrap');
   wrap.innerHTML = '';
@@ -224,7 +163,10 @@ function renderLEDGrid() {
       cell.dataset.row = r;
       cell.dataset.col = c;
       cell.onclick = () => {
-        ledGrid[r][c] = !ledGrid[r][c];
+        // Cycle through samples for assignment: null -> kick -> snare -> hat -> clap -> perc1 -> null
+        const samples = [null, 'kick', 'snare', 'hat', 'clap', 'perc1'];
+        const curr = samples.indexOf(ledGrid[r][c]);
+        ledGrid[r][c] = samples[(curr + 1) % samples.length];
         renderLEDGrid();
       };
       grid.appendChild(cell);
@@ -233,55 +175,165 @@ function renderLEDGrid() {
   wrap.appendChild(grid);
 }
 function clearLEDGrid() {
-  ledGrid = Array.from({length: ledRows}, () => Array(ledCols).fill(false));
+  ledGrid = Array.from({length: ledRows}, () => Array(ledCols).fill(null));
   renderLEDGrid();
 }
-document.getElementById('led-clear').onclick = clearLEDGrid;
 
-// ======= Encoding/Decoding =======
-function melodyToHash() {
-  return melody.map(n => n.midi).join(',');
+// ======= LED Drum Sequencer =======
+function playLEDGrid() {
+  if (ledSequence) ledSequence.dispose();
+  ledSequence = new Tone.Sequence((time, col) => {
+    for (let row = 0; row < ledRows; row++) {
+      const sample = ledGrid[row][col];
+      if (sample && drumSamples[sample]) {
+        drumSamples[sample].start(time);
+      }
+      highlightLEDStep(row, col);
+    }
+  }, [...Array(ledCols).keys()], "16n").start(0);
+  Tone.Transport.bpm.value = bpm;
+  Tone.Transport.start("+0.1");
 }
-function ledToHash() {
-  return ledGrid.map(row => row.map(c => c ? 1 : 0).join('')).join('|');
+function stopLEDGrid() {
+  if (ledSequence) ledSequence.dispose();
+  ledSequence = null;
+  Tone.Transport.stop();
 }
-function bothToHash() {
-  return melodyToHash() + '||' + ledToHash();
+function highlightLEDStep(row, col) {
+  document.querySelectorAll('.led-cell').forEach(cell => cell.classList.remove('playing'));
+  const idx = row * ledCols + col;
+  const el = document.querySelectorAll('.led-cell')[idx];
+  if (el) el.classList.add('playing');
 }
-document.getElementById('encode-btn').onclick = function () {
-  const msg = document.getElementById('cipher-input').value;
-  const mode = document.getElementById('unlock-mode').value;
-  let pwHash;
-  if (mode === 'melody') pwHash = melodyToHash();
-  else if (mode === 'led') pwHash = ledToHash();
-  else pwHash = bothToHash();
-  document.getElementById('cipher-output').textContent =
-    btoa(unescape(encodeURIComponent(msg))) + '::' + pwHash;
+
+// ======= Metronome =======
+let metroPart = null;
+function toggleMetronome(on) {
+  if (on) {
+    if (metroPart) metroPart.dispose();
+    metroPart = new Tone.Loop((time) => {
+      // Use a simple click sound
+      const click = new Tone.MembraneSynth().toDestination();
+      click.triggerAttackRelease("C4", 0.07, time, 0.3);
+    }, "4n").start(0);
+    Tone.Transport.start("+0.1");
+  } else {
+    if (metroPart) metroPart.dispose();
+    metroPart = null;
+  }
+}
+
+// ======= Controls & Handlers =======
+document.getElementById('melody-record').onclick = () => {
+  isRecording = true;
+  melody = [];
+  updateMelodyBar();
 };
-document.getElementById('decode-btn').onclick = function () {
-  const val = document.getElementById('cipher-output').textContent.trim();
-  if (!val.includes('::')) {
-    document.getElementById('cipher-output').textContent = 'No encoded message to decode!';
+document.getElementById('melody-stop').onclick = () => {
+  isRecording = false;
+};
+document.getElementById('melody-play').onclick = () => {
+  stopMelody();
+  playMelody();
+};
+document.getElementById('melody-clear').onclick = () => {
+  clearMelody();
+};
+document.getElementById('melody-save').onclick = () => {
+  saveToFile(JSON.stringify(melody), "melody.json");
+};
+document.getElementById('melody-load').onclick = () => {
+  document.getElementById('melody-file').click();
+};
+document.getElementById('melody-file').onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    melody = JSON.parse(evt.target.result);
+    updateMelodyBar();
+  };
+  reader.readAsText(file);
+};
+
+document.getElementById('led-clear').onclick = clearLEDGrid;
+document.getElementById('led-save').onclick = () => {
+  saveToFile(JSON.stringify(ledGrid), "ledgrid.json");
+};
+document.getElementById('led-load').onclick = () => {
+  document.getElementById('led-file').click();
+};
+document.getElementById('led-file').onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    ledGrid = JSON.parse(evt.target.result);
+    renderLEDGrid();
+  };
+  reader.readAsText(file);
+};
+
+// ======= Metronome Controls =======
+let metronomeOn = false;
+document.getElementById('metronome-toggle').onclick = () => {
+  metronomeOn = !metronomeOn;
+  toggleMetronome(metronomeOn);
+  document.getElementById('metronome-toggle').textContent = "Metronome: " + (metronomeOn ? "ON" : "OFF");
+};
+document.getElementById('bpm').oninput = (e) => {
+  bpm = parseInt(e.target.value) || 120;
+  Tone.Transport.bpm.value = bpm;
+};
+
+document.addEventListener('keydown', e => {
+  // Octave shift
+  if (e.key === "PageUp") {
+    shiftOctave(1);
     return;
   }
-  const [enc, pwHash] = val.split('::');
-  const mode = document.getElementById('unlock-mode').value;
-  let inputHash;
-  if (mode === 'melody') inputHash = melodyToHash();
-  else if (mode === 'led') inputHash = ledToHash();
-  else inputHash = bothToHash();
-  if (inputHash !== pwHash) {
-    document.getElementById('cipher-output').textContent = 'Wrong melody/pattern!';
+  if (e.key === "PageDown") {
+    shiftOctave(-1);
     return;
   }
-  const msg = decodeURIComponent(escape(atob(enc)));
-  document.getElementById('cipher-output').textContent = `Decoded: ${msg}`;
-};
+  // Backspace for melody
+  if (e.key === "Backspace") {
+    e.preventDefault();
+    if (melody.length > 0) {
+      melody.pop();
+      updateMelodyBar();
+    }
+    return;
+  }
+  // White keys
+  let idx = WHITE_KEYS.indexOf(e.key);
+  if (idx !== -1) {
+    const midi = 12 * currentOctave + WHITE_MIDI_OFFSETS[idx];
+    playNoteToneJS(midi);
+    if (isRecording) addToMelody(midi);
+    return;
+  }
+  // Black keys
+  idx = BLACK_KEYS.indexOf(e.key);
+  if (idx !== -1 && BLACK_MIDI_OFFSETS[idx] !== null) {
+    const midi = 12 * currentOctave + BLACK_MIDI_OFFSETS[idx];
+    playNoteToneJS(midi);
+    if (isRecording) addToMelody(midi);
+    return;
+  }
+});
+
+// ======= Utility: Save to File =======
+function saveToFile(data, filename) {
+  const a = document.createElement('a');
+  a.href = "data:application/json," + encodeURIComponent(data);
+  a.download = filename;
+  a.click();
+}
 
 // ======= On Load =======
 window.onload = function () {
   renderPiano();
   updateMelodyBar();
   renderLEDGrid();
-  // ... your other initializations ...
 };
