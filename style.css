@@ -198,6 +198,17 @@ section {
   font-size: 0.92em;
   color: #aaa;
 }
+.led-cell.flash {
+  box-shadow: 0 0 32px 8px #ffe600, 0 2px 6px #ffe600aa;
+  background: #ffe600 !important;
+  transition: box-shadow 0.11s, background 0.11s;
+}
+.led-cell.playing {
+  outline: 2.5px solid #222;
+  outline-offset: -3px;
+  z-index: 1;
+}
+
 #sample-palette {
   margin: 10px 0 0 0;
   display: flex;
