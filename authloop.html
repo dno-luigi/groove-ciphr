@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>authLoop – Melody & LED Grid Auth</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css?family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: #f7f7f7;
+      color: #222;
+      font-family: 'Space Mono', monospace;
+      margin: 0;
+      padding: 0;
+    }
+    #main-wrap {
+      max-width: 900px;
+      margin: 32px auto;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 32px 0 #1112, 0 0 0 8px #e0e0e0 inset;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 2px solid #ffe600;
+      padding: 18px 36px 10px 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    h1 {
+      font-family: 'Space Mono', monospace;
+      letter-spacing: 0.07em;
+      font-size: 2.2em;
+      color: #222;
+    }
+    #mode-toggle button {
+      background: #ececec;
+      border: none;
+      border-radius: 12px 12px 0 0;
+      margin-left: 2px;
+      font-family: inherit;
+      font-size: 1em;
+      padding: 8px 20px 6px 20px;
+      color: #888;
+      cursor: pointer;
+      outline: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    #mode-toggle .active {
+      background: #ffe600;
+      color: #111;
+      font-weight: bold;
+    }
+    main {
+      padding: 36px;
+      background: #f7f7f7;
+    }
+    section {
+      margin-bottom: 40px;
+    }
+    .input-group {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 7px;
+      flex-wrap: wrap;
+    }
+    .label {
+      font-weight: bold;
+      color: #222;
+      margin-right: 5px;
+    }
+    .mono {
+      font-family: "Space Mono", monospace;
+      font-size: 1.09em;
+      color: #444;
+      margin-right: 7px;
+      word-break: break-all;
+      user-select: all;
+    }
+    .copy-status {
+      color: #2a5;
+      font-size: 0.95em;
+      min-width: 50px;
+    }
+    .btn {
+      background: #ececec;
+      color: #222;
+      border: none;
+      border-radius: 6px;
+      font-size: 1em;
+      font-family: inherit;
+      padding: 7px 16px;
+      cursor: pointer;
+      margin-right: 8px;
+      margin-bottom: 7px;
+      transition: background 0.15s;
+    }
+    .btn:active, .btn:focus {
+      background: #ffe600;
+      color: #222;
+      outline: none;
+    }
+    /* PIANO */
+    #piano-wrap {
+      margin-bottom: 18px;
+      position: relative;
+      user-select: none;
+    }
+    .piano {
+      display: flex;
+      position: relative;
+      height: 120px;
+      margin-bottom: 16px;
+      user-select: none;
+    }
+    .piano-key {
+      border-radius: 6px;
+      margin-right: 2px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      font-size: 0.93em;
+      box-shadow: 0 2px 4px #aaa2;
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      transition: transform 0.11s;
+    }
+    .piano-key.white {
+      width: 36px;
+      height: 110px;
+      background: #fff;
+      border: 1px solid #ffe600;
+      color: #222;
+    }
+    .piano-key.black {
+      width: 22px;
+      height: 72px;
+      background: #1a1a1a;
+      color: #ffe600;
+      position: absolute;
+      z-index: 2;
+      margin-left: -11px;
+      border: 1.5px solid #ffe600;
+      top: 0;
+    }
+    .piano-key.active {
+      background: #ffe600 !important;
+      color: #222 !important;
+      transform: scale(1.1);
+    }
+    .piano-key .key-label {
+      font-size: 0.93em;
+      margin-top: 4px;
+    }
+    .piano-key .key-note {
+      font-size: 0.8em;
+      color: #999;
+    }
+    #octave-indicator {
+      margin: 8px 0 0 0;
+      font-weight: bold;
+      font-size: 1.1em;
+      color: #888;
+    }
+    #melody-bar {
+      min-height: 24px;
+      margin-bottom: 12px;
+    }
+    .melody-note {
+      display: inline-block;
+      background: #ffe600;
+      color: #111;
+      font-family: inherit;
+      font-size: 1em;
+      padding: 2px 10px;
+      border-radius: 7px;
+      margin-right: 2px;
+      margin-bottom: 2px;
+      transition: background 0.14s, color 0.14s;
+    }
+    .melody-note.playing {
+      background: #222;
+      color: #ffe600;
+    }
+    /* LED GRID */
+    #led-grid-wrap {
+      display: flex;
+      justify-content: center;
+      margin: 0.6em 0 1em 0;
+    }
+    .led-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 36px);
+      grid-template-rows: repeat(5, 36px);
+      gap: 7px;
+      background: #fff;
+      padding: 12px;
+      border-radius: 10px;
+      box-shadow: 0 1px 7px #ffe60044;
+      border: 2px solid #ffe600;
+      width: max-content;
+    }
+    .led-cell {
+      width: 36px;
+      height: 36px;
+      border-radius: 7px;
+      background: #ececec;
+      border: 1.5px solid #ffe600;
+      box-shadow: 0 0 4px #ffe60044 inset;
+      cursor: pointer;
+      transition: background 0.18s, border-color 0.19s;
+      position: relative;
+      z-index: 1;
+    }
+    .led-cell.on {
+      background: #ffe600;
+      border-color: #222;
+      box-shadow: 0 0 12px #ffe60077, 0 0 7px #ffe60044 inset;
+    }
+    .led-cell.anim {
+      animation: led-blink 0.4s;
+    }
+    @keyframes led-blink {
+      0% { filter: brightness(1.0);}
+      50% { filter: brightness(2.2);}
+      100% { filter: brightness(1.0);}
+    }
+    .hide { display: none !important; }
+    #decode-out { font-size: 1.12em; color: #222; margin-top: 0.4em; }
+    #encode-out { font-size: 1.12em; color: #222; margin-top: 0.4em; }
+    
+    /* BPM Controls */
+    .bpm-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .bpm-controls label {
+      font-weight: bold;
+      color: #444;
+    }
+    .bpm-controls input {
+      width: 60px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #ffe600;
+      font-family: inherit;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <div id="main-wrap">
+    <header>
+      <h1>authLoop</h1>
+      <div id="mode-toggle">
+        <button id="tab-melody" class="active">Melody</button>
+        <button id="tab-led">LED Grid</button>
+        <button id="tab-both">Both</button>
+      </div>
+    </header>
+    <main>
+      <!-- Melody Section -->
+      <section id="melody-section">
+        <h2 style="margin-top:0;">Melody Lock</h2>
+        <div id="piano-wrap"></div>
+        <div id="octave-indicator"></div>
+        <div id="melody-bar"></div>
+        <div class="input-group">
+          <button id="melody-record" class="btn">Record</button>
+          <button id="melody-stop" class="btn" disabled>Stop</button>
+          <button id="melody-play" class="btn">Play</button>
+          <button id="melody-clear" class="btn">Clear</button>
+          <button id="melody-save" class="btn">Save</button>
+          <button id="melody-load" class="btn">Load</button>
+          <input id="melody-file" type="file" style="display:none;">
+        </div>
+        <div class="input-group" style="margin:1em 0;">
+          <span class="label">Melody SHA-256:</span>
+          <span id="melody-hash" class="mono"></span>
+          <button id="melody-copy" class="btn">Copy</button>
+          <span id="melody-copy-status" class="copy-status"></span>
+        </div>
+        <div class="input-group" style="margin-top:2em;">
+          <span class="label">Message to Encode:</span>
+          <input id="encode-msg" style="font-size:1em; padding:4px 12px; border-radius:6px; border:1px solid #ffe600;">
+          <button id="encode-btn" class="btn">Encode</button>
+        </div>
+        <div id="encode-out"></div>
+      </section>
+
+      <!-- LED Grid Section -->
+      <section id="led-section" style="display:none;">
+        <h2 style="margin-top:0;">LED Grid Authentication</h2>
+        <div class="input-group">
+          <button id="led-melody-load" class="btn">Open Melody JSON</button>
+          <input type="file" id="led-melody-file" accept="application/json" style="display:none;">
+          <span id="led-melody-filename" style="color:#888;margin-left:10px;"></span>
+        </div>
+        <div class="input-group" style="margin:1em 0;">
+          <span class="label">Melody SHA-256:</span>
+          <span id="led-melody-hash" class="mono"></span>
+          <button id="led-melody-copy" class="btn">Copy</button>
+          <span id="led-melody-copy-status" class="copy-status"></span>
+        </div>
+        <div style="margin:0.8em 0 0.5em 0;">
+          <span class="label">LED Grid Pattern:</span>
+          <span id="led-grid-hash" class="mono"></span>
+          <button id="led-grid-copy" class="btn">Copy</button>
+          <span id="led-grid-copy-status" class="copy-status"></span>
+        </div>
+        <div id="led-grid-wrap" style="margin:18px 0 14px 0;"></div>
+        <div class="input-group">
+          <button id="led-play" class="btn">Play Melody on Grid</button>
+          <button id="led-stop" class="btn" disabled>Stop</button>
+          <button id="led-clear" class="btn">Clear</button>
+          <button id="led-save" class="btn">Save Pattern</button>
+          <button id="led-load" class="btn">Load Pattern</button>
+          <input type="file" id="led-file" accept="application/json" style="display:none;">
+        </div>
+        
+        <!-- BPM Controls -->
+        <div class="bpm-controls">
+          <label for="led-bpm">BPM:</label>
+          <input id="led-bpm" type="number" min="30" max="300" value="120" class="bpm-input">
+          <label for="led-volume">Volume:</label>
+          <input id="led-volume" type="range" min="0.1" max="1" step="0.1" value="0.5" class="volume-slider">
+        </div>
+        
+        <div class="input-group" style="margin-top:2em;">
+          <span class="label">Paste Encoded String:</span>
+          <input id="decode-in" style="font-size:1em; padding:4px 12px; border-radius:6px; border:1px solid #ffe600;">
+          <button id="decode-btn" class="btn">Decode</button>
+        </div>
+        <div id="decode-out"></div>
+      </section>
+    </main>
+  </div>
+  <script>
+    // ----- Tab switching logic -----
+    function showTab(tab) {
+      document.getElementById('melody-section').style.display = (tab === 'melody' || tab === 'both') ? '' : 'none';
+      document.getElementById('led-section').style.display = (tab === 'led' || tab === 'both') ? '' : 'none';
+      document.getElementById('tab-melody').classList.toggle('active', tab === 'melody');
+      document.getElementById('tab-led').classList.toggle('active', tab === 'led');
+      document.getElementById('tab-both').classList.toggle('active', tab === 'both');
+      if (tab === 'led' || tab === 'both') {
+        setTimeout(() => { renderLedGrid(); updateLedGridHash(); }, 0);
+      }
+      if (tab === 'melody' || tab === 'both') {
+        setTimeout(() => { renderPiano(); }, 0);
+      }
+    }
+    document.getElementById('tab-melody').onclick = () => showTab('melody');
+    document.getElementById('tab-led').onclick = () => showTab('led');
+    document.getElementById('tab-both').onclick = () => showTab('both');
+
+    // ----- PIANO LOGIC -----
+    const WHITE_KEYS = ['q','w','e','r','t','y','u','i','o','p','[',']','\\','PageUp','PageDown'];
+    const BLACK_KEYS = ['2','3','5','6','7','9','0','-','=','\''];
+    const WHITE_OFFSETS = [0,2,4,5,7,9,11,12,14,16,17,19,21,24,24];
+    const BLACK_OFFSETS = [1,3,6,8,10,13,15,18,20,22,25];
+    let currentOctave = 4, MIN_OCTAVE=1, MAX_OCTAVE=7;
+
+    function renderPiano() {
+      const wrap = document.getElementById('piano-wrap');
+      wrap.innerHTML = '';
+      const piano = document.createElement('div');
+      piano.className = 'piano';
+      WHITE_KEYS.forEach((k, i) => {
+        const isSpecial = k === 'PageUp' || k === 'PageDown';
+        const midi = getWhiteKeyMidi(i);
+        const div = document.createElement('div');
+        div.className = 'piano-key white' + (isSpecial ? ' special' : '');
+        div.dataset.key = k;
+        if (!isSpecial) {
+          div.dataset.midi = midi;
+          div.innerHTML = `<span class="key-note">${midiToNote(midi)}</span>`;
+          div.onmousedown = () => { playNote(midi); addToMelody(midi); };
+        } else {
+          div.innerHTML = `<span class="key-note"></span>`;
+          div.onmousedown = () => shiftOctave(k === 'PageUp' ? 1 : -1);
+        }
+        piano.appendChild(div);
+      });
+      BLACK_KEYS.forEach((k, i) => {
+        if (!k) return;
+        const midi = getBlackKeyMidi(i);
+        const div = document.createElement('div');
+        div.className = 'piano-key black';
+        div.dataset.midi = midi;
+        div.dataset.key = k;
+        div.style.left = `${blackKeyPosition(i)}px`;
+        div.innerHTML = `<span class="key-note">${midiToNote(midi)}</span>`;
+        div.onmousedown = () => { playNote(midi); addToMelody(midi); };
+        piano.appendChild(div);
+      });
+      wrap.appendChild(piano);
+      let octDiv = document.getElementById('octave-indicator');
+      if(octDiv) octDiv.innerHTML = `Current Octave: <span id="octave-num">${currentOctave}</span>`;
+    }
+    function blackKeyPosition(i) {
+      const positions = [1.6,2.6,4.6,5.6,6.6,8.6,9.6,11.6,12.6,13.6];
+      return positions[i] * 36;
+    }
+    function getWhiteKeyMidi(i) { return 12 * currentOctave + WHITE_OFFSETS[i]; }
+    function getBlackKeyMidi(i) { return 12 * currentOctave + BLACK_OFFSETS[i]; }
+    function midiToNote(m) {
+      const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      return names[m % 12] + Math.floor(m / 12 - 1);
+    }
+    function shiftOctave(dir) {
+      const prev = currentOctave;
+      currentOctave += dir;
+      if (currentOctave < MIN_OCTAVE) currentOctave = MIN_OCTAVE;
+      if (currentOctave > MAX_OCTAVE) currentOctave = MAX_OCTAVE;
+      if (prev !== currentOctave) renderPiano();
+    }
+    
+    // Volume boost for all playback
+    let globalVolume = 0.5; // Default volume (0.5 is 50% louder than original)
+    
+    function playNote(midi, vol = globalVolume) {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+      const g = ctx.createGain();
+      g.gain.value = vol;
+      o.connect(g).connect(ctx.destination);
+      o.start();
+      g.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.18);
+      o.stop(ctx.currentTime + 0.19);
+      o.onended = () => ctx.close();
+      highlightKey(midi);
+    }
+    
+    function highlightKey(midi) {
+      document.querySelectorAll('.piano-key').forEach(k => k.classList.remove('active'));
+      const el = document.querySelector(`.piano-key[data-midi="${midi}"]`);
+      if (el) { el.classList.add('active'); setTimeout(() => el.classList.remove('active'), 140); }
+    }
+    // ----- Melody Recording -----
+    let melody = [];
+    let isRecording = false;
+    let melodyPlaybackTimer = null;
+    let melodyStartTime = null;
+    function addToMelody(midi) {
+      if (isRecording) {
+        const t = Date.now();
+        const relTime = melodyStartTime ? t - melodyStartTime : 0;
+        melody.push({ midi, time: relTime });
+        updateMelodyBar();
+        updateMelodyHash();
+      }
+    }
+    function backspaceMelody() {
+      melody.pop();
+      updateMelodyBar();
+      updateMelodyHash();
+    }
+    function updateMelodyBar() {
+      const bar = document.getElementById('melody-bar');
+      bar.innerHTML = '';
+      melody.forEach((n, i) => {
+        const d = document.createElement('span');
+        d.className = 'melody-note';
+        d.textContent = midiToNote(n.midi);
+        bar.appendChild(d);
+      });
+    }
+    function clearMelody() {
+      melody = [];
+      updateMelodyBar();
+      updateMelodyHash();
+    }
+    document.getElementById('melody-clear').onclick = clearMelody;
+    function startRecording() {
+      melody = [];
+      isRecording = true;
+      melodyStartTime = Date.now();
+      updateMelodyBar();
+      updateMelodyButtons();
+      updateMelodyHash();
+    }
+    function stopRecording() {
+      isRecording = false;
+      melodyStartTime = null;
+      updateMelodyButtons();
+    }
+    function playMelody() {
+      if (!melody.length) return;
+      let idx = 0;
+      function playNext() {
+        if (idx >= melody.length) {
+          updateMelodyBar();
+          updateMelodyButtons();
+          return;
+        }
+        const n = melody[idx];
+        highlightPlayingNote(idx);
+        playNote(n.midi, globalVolume);
+        idx++;
+        if (idx < melody.length) {
+          const nextDelay = melody[idx].time - (idx > 0 ? melody[idx-1].time : 0);
+          melodyPlaybackTimer = setTimeout(playNext, nextDelay > 0 ? nextDelay : 120);
+        } else {
+          melodyPlaybackTimer = setTimeout(() => {
+            updateMelodyBar();
+            updateMelodyButtons();
+          }, 400);
+        }
+      }
+      updateMelodyButtons(true);
+      playNext();
+    }
+    function highlightPlayingNote(idx) {
+      document.querySelectorAll('.melody-note').forEach((el, i) => {
+        if (i === idx) el.classList.add('playing');
+        else el.classList.remove('playing');
+      });
+    }
+    function updateMelodyButtons(isPlaying) {
+      document.getElementById('melody-record').disabled = isRecording || isPlaying;
+      document.getElementById('melody-stop').disabled = !isRecording && !isPlaying;
+      document.getElementById('melody-play').disabled = isRecording || isPlaying || melody.length === 0;
+      document.getElementById('melody-save').disabled = melody.length === 0;
+      document.getElementById('melody-load').disabled = isRecording || isPlaying;
+    }
+    document.getElementById('melody-record').onclick = startRecording;
+    document.getElementById('melody-stop').onclick = function() {
+      if (isRecording) stopRecording();
+      if (melodyPlaybackTimer) {
+        clearTimeout(melodyPlaybackTimer);
+        melodyPlaybackTimer = null;
+        updateMelodyBar();
+        updateMelodyButtons();
+      }
+    };
+    document.getElementById('melody-play').onclick = playMelody;
+    document.getElementById('melody-save').onclick = function() {
+      if (melody.length === 0) return;
+      const blob = new Blob([JSON.stringify(melody)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'melody.json';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>document.body.removeChild(a), 100);
+    };
+    document.getElementById('melody-load').onclick = function() {
+      document.getElementById('melody-file').click();
+    };
+    document.getElementById('melody-file').onchange = function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          melody = JSON.parse(e.target.result);
+          updateMelodyBar();
+          updateMelodyButtons();
+          updateMelodyHash();
+        } catch {
+          melody = [];
+          updateMelodyBar();
+          updateMelodyButtons();
+          updateMelodyHash();
+        }
+      };
+      reader.readAsText(file);
+    };
+    // Melody SHA-256
+    async function updateMelodyHash() {
+      if (!melody || !melody.length) {
+        document.getElementById('melody-hash').textContent = '';
+        return;
+      }
+      const midiArr = melody.map(n => n.midi);
+      const timingArr = melody.map(n => n.time || 0);
+      const bytes = new Uint8Array([...midiArr, ...timingArr]);
+      const hashBuf = await window.crypto.subtle.digest('SHA-256', bytes);
+      const hash = Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      document.getElementById('melody-hash').textContent = hash;
+    }
+    document.getElementById('melody-copy').onclick = function() {
+      const hash = document.getElementById('melody-hash').textContent;
+      if (hash) {
+        navigator.clipboard.writeText(hash).then(()=>{
+          document.getElementById('melody-copy-status').textContent = "Copied!";
+          setTimeout(()=>document.getElementById('melody-copy-status').textContent = '', 1200);
+        });
+      }
+    };
+    document.addEventListener('keydown', e => {
+      if (e.repeat) return;
+      const k = e.key;
+      if (k === 'Backspace') {
+        e.preventDefault();
+        backspaceMelody();
+        return;
+      }
+      if (k === 'PageUp') { shiftOctave(1); return; }
+      if (k === 'PageDown') { shiftOctave(-1); return; }
+      let idx = WHITE_KEYS.indexOf(k);
+      if (idx !== -1 && k !== 'PageUp' && k !== 'PageDown') {
+        const midi = getWhiteKeyMidi(idx);
+        playNote(midi);
+        addToMelody(midi);
+        return;
+      }
+      idx = BLACK_KEYS.indexOf(k);
+      if (idx !== -1) {
+        const midi = getBlackKeyMidi(idx);
+        playNote(midi);
+        addToMelody(midi);
+        return;
+      }
+    });
+
+    // ENCODE (melody page)
+    document.getElementById('encode-btn').onclick = async function() {
+      const msg = document.getElementById('encode-msg').value;
+      if (!msg.trim()) {
+        document.getElementById('encode-out').textContent = "Type a message.";
+        return;
+      }
+      if (!melody.length) {
+        document.getElementById('encode-out').textContent = "Record a melody first.";
+        return;
+      }
+      const midiArr = melody.map(n => n.midi);
+      const timingArr = melody.map(n => n.time || 0);
+      const bytes = new Uint8Array([...midiArr, ...timingArr]);
+      const hashBuf = await window.crypto.subtle.digest('SHA-256', bytes);
+      const hash = Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const enc = btoa(unescape(encodeURIComponent(msg)));
+      // Format: encoded::hash
+      document.getElementById('encode-out').textContent = enc + "::" + hash;
+    };
+
+    // ----- LED GRID LOGIC -----
+    const ledGridRows = 5, ledGridCols = 5;
+    let ledGrid = Array.from({length: ledGridRows}, () => Array(ledGridCols).fill(false));
+    function renderLedGrid() {
+      const gridWrap = document.getElementById('led-grid-wrap');
+      gridWrap.innerHTML = '';
+      const grid = document.createElement('div');
+      grid.className = 'led-grid';
+      for (let row = 0; row < ledGridRows; row++) {
+        for (let col = 0; col < ledGridCols; col++) {
+          const cell = document.createElement('div');
+          cell.className = 'led-cell' + (ledGrid[row][col] ? ' on' : '');
+          cell.onclick = () => {
+            ledGrid[row][col] = !ledGrid[row][col];
+            renderLedGrid();
+            updateLedGridHash();
+          };
+          grid.appendChild(cell);
+        }
+      }
+      gridWrap.appendChild(grid);
+    }
+
+    // LED melody JSON hash & visualization
+    let loadedMelody = null;
+    let loadedMelodyFilename = '';
+    const pastelPalette = [
+      "#a3cef1", "#ffb3c6", "#caffbf", "#fdffb6", "#ffd6a5",
+      "#b5ead7", "#bdb2ff", "#ffc6ff", "#fffffc", "#ffe5d9",
+      "#b2f7ef", "#f6dfeb", "#e7c6ff", "#e0aaff", "#f1c0e8",
+      "#f3d2c1", "#d0f4de", "#fcf6bd", "#f7d6e0", "#ccfff6"
+    ];
+
+    document.getElementById('led-melody-load').onclick = () =>
+      document.getElementById('led-melody-file').click();
+
+    document.getElementById('led-melody-file').onchange = function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      loadedMelodyFilename = file.name;
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          loadedMelody = Array.isArray(data) ? data : (data.melody || []);
+          document.getElementById('led-melody-filename').textContent = loadedMelodyFilename;
+          await updateLedMelodyHash();
+          if ((Array.isArray(loadedMelody) && loadedMelody.length > 0)) {
+            stopLedGridPlayback();
+            visualizeMelodyOnGrid(loadedMelody);
+          }
+        } catch {
+          loadedMelody = null;
+          document.getElementById('led-melody-filename').textContent = 'Invalid file';
+          document.getElementById('led-melody-hash').textContent = '';
+        }
+      };
+      reader.readAsText(file);
+    };
+    async function updateLedMelodyHash() {
+      if (!loadedMelody) {
+        document.getElementById('led-melody-hash').textContent = '';
+        return;
+      }
+      const midiArr = loadedMelody.map(n => (typeof n === 'object' ? n.midi : n));
+      const timingArr = loadedMelody.map(n => (typeof n === 'object' ? n.time || 0 : 0));
+      const bytes = new Uint8Array([...midiArr, ...timingArr]);
+      const hashBuf = await window.crypto.subtle.digest('SHA-256', bytes);
+      const hash = Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      document.getElementById('led-melody-hash').textContent = hash;
+    }
+    document.getElementById('led-melody-copy').onclick = function() {
+      const hash = document.getElementById('led-melody-hash').textContent;
+      if (hash) {
+        navigator.clipboard.writeText(hash).then(()=>{
+          document.getElementById('led-melody-copy-status').textContent = "Copied!";
+          setTimeout(()=>document.getElementById('led-melody-copy-status').textContent = '', 1200);
+        });
+      }
+    };
+    function getLedGridCode() {
+      // Output a 25-character string, one per cell: 1=on, 0=off
+      return ledGrid.flat().map(v => v ? '1' : '0').join('');
+    }
+    function updateLedGridHash() {
+      document.getElementById('led-grid-hash').textContent = getLedGridCode();
+    }
+    document.getElementById('led-grid-copy').onclick = function() {
+      const code = document.getElementById('led-grid-hash').textContent;
+      if (code) {
+        navigator.clipboard.writeText(code).then(()=>{
+          document.getElementById('led-grid-copy-status').textContent = "Copied!";
+          setTimeout(()=>document.getElementById('led-grid-copy-status').textContent = '', 1200);
+        });
+      }
+    };
+    document.getElementById('led-clear').onclick = function() {
+      ledGrid = Array.from({length: ledGridRows}, () => Array(ledGridCols).fill(false));
+      renderLedGrid();
+      updateLedGridHash();
+    };
+    document.getElementById('led-save').onclick = function() {
+      const data = JSON.stringify(ledGrid);
+      const blob = new Blob([data], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'ledgrid.json';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>document.body.removeChild(a), 100);
+    };
+    document.getElementById('led-load').onclick = function() {
+      document.getElementById('led-file').click();
+    };
+    document.getElementById('led-file').onchange = function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (Array.isArray(data) && data.length === ledGridRows && data[0].length === ledGridCols) {
+            ledGrid = data;
+            renderLedGrid();
+            updateLedGridHash();
+          }
+        } catch { /* ignore */ }
+      };
+      reader.readAsText(file);
+    };
+
+    // --- Grid Play/Loop Melody with BPM and Volume Control ---
+    let ledPlaybackActive = false, ledPlaybackIdx = 0, ledPlaybackTimer = null;
+    
+    document.getElementById('led-play').onclick = function() {
+      if (!loadedMelody || !loadedMelody.length) {
+        alert("Load a melody JSON first.");
+        return;
+      }
+      this.disabled = true;
+      document.getElementById('led-stop').disabled = false;
+      ledPlaybackActive = true;
+      ledPlaybackIdx = 0;
+      playMelodyOnGridLoop();
+    };
+    
+    document.getElementById('led-stop').onclick = stopLedGridPlayback;
+    
+    function stopLedGridPlayback() {
+      ledPlaybackActive = false;
+      document.getElementById('led-play').disabled = false;
+      document.getElementById('led-stop').disabled = true;
+      clearTimeout(ledPlaybackTimer);
+      renderLedGrid();
+    }
+    
+    function playMelodyOnGridLoop() {
+      if (!ledPlaybackActive || !loadedMelody || !loadedMelody.length) return;
+      
+      const melodyData = loadedMelody;
+      const midiArr = melodyData.map(n => (typeof n === 'object' ? n.midi : n));
+      const timingArr = melodyData.map(n => (typeof n === 'object' ? n.time || 0 : 0));
+      
+      // Get BPM and volume values
+      const bpm = parseInt(document.getElementById('led-bpm').value) || 120;
+      const volume = parseFloat(document.getElementById('led-volume').value) || 0.5;
+      
+      // Calculate tempo factor
+      const tempoFactor = 120 / bpm;
+      
+      let gridCells = Array.from(document.querySelectorAll('.led-cell'));
+      let idx = 0;
+      
+      function playStep() {
+        if (!ledPlaybackActive) return;
+        
+        // Blinking cell
+        let cellIdx = idx % gridCells.length;
+        let cell = gridCells[cellIdx];
+        let color = pastelPalette[idx % pastelPalette.length];
+        cell.style.background = color;
+        cell.classList.add('anim');
+        
+        // Play sound with boosted volume
+        playNote(midiArr[idx], volume);
+        
+        setTimeout(() => {
+          cell.classList.remove('anim');
+          cell.style.background = '';
+          idx++;
+          
+          if (idx < midiArr.length) {
+            // Calculate delay with tempo adjustment
+            let delay = (timingArr[idx] - (timingArr[idx-1]||0)) * tempoFactor;
+            if (delay < 20) delay = 160 * tempoFactor;
+            
+            ledPlaybackTimer = setTimeout(playStep, delay);
+          } else {
+            idx = 0;
+            // Keep loop pause consistent regardless of BPM
+            ledPlaybackTimer = setTimeout(playStep, 600); 
+          }
+        }, 180);
+      }
+      
+      playStep();
+    }
+
+    // --- Melody Pattern Visualization as LED Animation ---
+    function visualizeMelodyOnGrid(melody) {
+      const gridCells = Array.from(document.querySelectorAll('.led-cell'));
+      const midiArr = melody.map(n => (typeof n === 'object' ? n.midi : n));
+      function blinkStep(i) {
+        if (i >= midiArr.length) {
+          setTimeout(() => { renderLedGrid(); updateLedGridHash(); }, 300);
+          return;
+        }
+        let cellIdx = i % gridCells.length;
+        let cell = gridCells[cellIdx];
+        let color = pastelPalette[i % pastelPalette.length];
+        cell.style.background = color;
+        cell.classList.add('anim');
+        setTimeout(() => {
+          cell.classList.remove('anim');
+          cell.style.background = '';
+          blinkStep(i + 1);
+        }, 180);
+      }
+      blinkStep(0);
+    }
+
+    // --- DECODE (LED Grid tab) ---
+    document.getElementById('decode-btn').onclick = async function() {
+      const encstr = document.getElementById('decode-in').value.trim();
+      if (!encstr) { document.getElementById('decode-out').textContent = "Paste an encoded string."; return; }
+      if (!loadedMelody || !loadedMelody.length) { document.getElementById('decode-out').textContent = "Load a melody JSON first."; return; }
+      if (!encstr.includes('::')) { document.getElementById('decode-out').textContent = "Invalid string."; return; }
+      const [enc, hash] = encstr.split('::');
+      // Compute melody hash
+      const midiArr = loadedMelody.map(n => (typeof n === 'object' ? n.midi : n));
+      const timingArr = loadedMelody.map(n => (typeof n === 'object' ? n.time || 0 : 0));
+      const bytes = new Uint8Array([...midiArr, ...timingArr]);
+      const hashBuf = await window.crypto.subtle.digest('SHA-256', bytes);
+      const melodyHash = Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      if (hash !== melodyHash) {
+        document.getElementById('decode-out').textContent = "Melody hash does not match. Wrong melody!";
+        return;
+      }
+      try {
+        const msg = decodeURIComponent(escape(atob(enc)));
+        document.getElementById('decode-out').textContent = "Decoded: " + msg;
+      } catch {
+        document.getElementById('decode-out').textContent = "Error decoding message.";
+      }
+    };
+
+    // --- INIT ---
+    function ledTabInit() {
+      renderPiano();
+      updateMelodyBar();
+      updateMelodyButtons();
+      updateMelodyHash();
+      renderLedGrid();
+      updateLedGridHash();
+      document.getElementById('led-melody-filename').textContent = '';
+      document.getElementById('led-melody-hash').textContent = '';
+      document.getElementById('led-grid-hash').textContent = '';
+      document.getElementById('led-play').disabled = false;
+      document.getElementById('led-stop').disabled = true;
+    }
+    if (document.readyState === "loading") {
+      window.addEventListener('DOMContentLoaded', ledTabInit);
+    } else {
+      ledTabInit();
+    }
+  </script>
+</body>
+</html>
